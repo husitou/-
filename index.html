@@ -12,8 +12,16 @@
     body {
       font-family: 'Noto Sans JP', 'Inter', sans-serif;
       background-color: #f1f5f9;
+      user-select: none;
+      -webkit-user-select: none;
     }
     
+    /* Allow text selection inside input fields */
+    input, textarea {
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
     .perspective-1000 {
       perspective: 1000px;
     }
@@ -39,7 +47,41 @@
       transform: rotateY(180deg);
     }
 
-    /* Custom Scrollbar for list */
+    .draggable-chip {
+      touch-action: none; /* Prevent scroll interference during drag */
+      cursor: grab;
+      position: relative;
+    }
+    .draggable-chip:active {
+      cursor: grabbing;
+    }
+
+    /* 語群の使用済み（赤色の斜め線）スタイル */
+    .draggable-chip.used {
+      opacity: 0.55;
+      cursor: not-allowed !important;
+      background-color: #f3f4f6 !important;
+      border-color: #cbd5e1 !important;
+      color: #94a3b8 !important;
+    }
+    .draggable-chip.used::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 100%;
+      height: 2px;
+      background-color: #ef4444; /* 赤色 */
+      transform: rotate(-12deg);
+      pointer-events: none;
+    }
+
+    /* Drop target transition */
+    .fb-drop-target {
+      transition: all 0.15s ease-in-out;
+    }
+
+    /* Custom Scrollbar */
     ::-webkit-scrollbar {
       width: 6px;
     }
@@ -60,7 +102,7 @@
         <div class="bg-yellow-400 text-indigo-900 rounded-lg p-1.5 flex items-center justify-center font-bold">
           <i class="fa-solid fa-earth-asia text-lg"></i>
         </div>
-        <h1 class="text-base md:text-xl font-black tracking-wide">地学基礎 暗記マスター (全52問)</h1>
+        <h1 class="text-base md:text-xl font-black tracking-wide">地学基礎 暗記マスター</h1>
       </div>
       <div class="flex items-center space-x-2 text-xs md:text-sm bg-indigo-800/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-indigo-400/30">
         <span id="mastered-count-badge" class="font-semibold text-emerald-300 flex items-center gap-1">
@@ -70,21 +112,27 @@
         <span id="review-count-badge" class="font-semibold text-amber-300 flex items-center gap-1">
           <i class="fa-solid fa-rotate-right"></i> 復習: 0
         </span>
+        <button onclick="resetAllProgress()" class="ml-2 text-xs text-indigo-200 hover:text-white underline" title="進捗データをリセット">
+          リセット
+        </button>
       </div>
     </div>
     
     <!-- Navigation Tabs -->
     <div class="max-w-4xl mx-auto px-2 flex border-t border-indigo-500/40 text-xs md:text-sm font-medium overflow-x-auto">
-      <button id="tab-flashcard" onclick="switchMode('flashcard')" class="flex-1 min-w-[90px] py-2.5 text-center border-b-2 border-white font-bold transition-all flex items-center justify-center gap-1.5 text-white">
+      <button id="tab-flashcard" onclick="switchMode('flashcard')" class="flex-1 min-w-[85px] py-2.5 text-center border-b-2 border-white font-bold transition-all flex items-center justify-center gap-1.5 text-white">
         <i class="fa-solid fa-layer-group"></i> <span>暗記カード</span>
       </button>
-      <button id="tab-typing" onclick="switchMode('typing')" class="flex-1 min-w-[90px] py-2.5 text-center border-b-2 border-transparent text-indigo-200 hover:text-white transition-all flex items-center justify-center gap-1.5">
+      <button id="tab-typing" onclick="switchMode('typing')" class="flex-1 min-w-[85px] py-2.5 text-center border-b-2 border-transparent text-indigo-200 hover:text-white transition-all flex items-center justify-center gap-1.5">
         <i class="fa-solid fa-keyboard"></i> <span>文字入力</span>
       </button>
-      <button id="tab-quiz" onclick="switchMode('quiz')" class="flex-1 min-w-[90px] py-2.5 text-center border-b-2 border-transparent text-indigo-200 hover:text-white transition-all flex items-center justify-center gap-1.5">
+      <button id="tab-quiz" onclick="switchMode('quiz')" class="flex-1 min-w-[85px] py-2.5 text-center border-b-2 border-transparent text-indigo-200 hover:text-white transition-all flex items-center justify-center gap-1.5">
         <i class="fa-solid fa-list-check"></i> <span>4択テスト</span>
       </button>
-      <button id="tab-list" onclick="switchMode('list')" class="flex-1 min-w-[90px] py-2.5 text-center border-b-2 border-transparent text-indigo-200 hover:text-white transition-all flex items-center justify-center gap-1.5">
+      <button id="tab-fillblank" onclick="switchMode('fillblank')" class="flex-1 min-w-[105px] py-2.5 text-center border-b-2 border-transparent text-indigo-200 hover:text-white transition-all flex items-center justify-center gap-1.5">
+        <i class="fa-solid fa-file-pen"></i> <span>適語補充＆語句</span>
+      </button>
+      <button id="tab-list" onclick="switchMode('list')" class="flex-1 min-w-[85px] py-2.5 text-center border-b-2 border-transparent text-indigo-200 hover:text-white transition-all flex items-center justify-center gap-1.5">
         <i class="fa-solid fa-book-open"></i> <span>全問一覧</span>
       </button>
     </div>
@@ -142,13 +190,9 @@
               <div id="card-answer" class="text-2xl md:text-3xl font-extrabold text-amber-300 tracking-wide mb-2">
                 正解表示
               </div>
-              <div id="card-alt-answers" class="text-xs text-indigo-300 mt-2 font-normal hidden">
-                <!-- Acceptable alternative answers -->
-              </div>
+              <div id="card-alt-answers" class="text-xs text-indigo-300 mt-2 font-normal hidden"></div>
             </div>
-            <div id="card-status-indicator" class="text-center text-xs font-medium">
-              <!-- Loaded via JS -->
-            </div>
+            <div id="card-status-indicator" class="text-center text-xs font-medium"></div>
           </div>
 
         </div>
@@ -273,9 +317,7 @@
         </div>
 
         <!-- 4 Options Grid -->
-        <div id="quiz-options-grid" class="grid grid-cols-1 gap-3 mb-6">
-          <!-- Generated via JS -->
-        </div>
+        <div id="quiz-options-grid" class="grid grid-cols-1 gap-3 mb-6"></div>
 
         <!-- Explanation / Feedback Box -->
         <div id="quiz-feedback" class="hidden p-4 rounded-2xl mb-4 text-center font-bold transition"></div>
@@ -303,7 +345,100 @@
     </section>
 
 
-    <!-- ================= MODE 4: Word List & Search Mode ================= -->
+    <!-- ================= MODE 4: Fill-in-the-Blank & Word Selection Mode (Drag & Drop) ================= -->
+    <section id="mode-fillblank" class="hidden">
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 mb-6">
+        <div class="flex justify-between items-center mb-2 text-xs md:text-sm text-slate-600 font-medium">
+          <span id="fb-progress-text" class="font-bold text-slate-700">適語問題 1 / 8</span>
+          <div class="flex items-center gap-2">
+            <span id="fb-status-badge" class="text-xs px-2.5 py-1 rounded-full font-bold bg-slate-100 text-slate-600">
+              未解答
+            </span>
+          </div>
+        </div>
+        <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+          <div id="fb-progress-bar" class="bg-indigo-600 h-full w-0 transition-all duration-300"></div>
+        </div>
+      </div>
+
+      <!-- Main Problem Container -->
+      <div class="bg-white rounded-3xl shadow-sm border border-slate-200/80 p-6 md:p-8 mb-6">
+        <div class="flex justify-between items-center mb-4">
+          <h2 id="fb-title" class="text-xl md:text-2xl font-black text-indigo-900 flex items-center gap-2">
+            <i class="fa-solid fa-book-bookmark text-indigo-600"></i> 問題タイトル
+          </h2>
+          <span id="fb-type-badge" class="text-xs font-bold px-3 py-1 bg-amber-100 text-amber-800 rounded-full">
+            適語補充
+          </span>
+        </div>
+
+        <!-- Word Bank (語群) Area with Drag & Drop capability -->
+        <div id="fb-wordbank-container" class="mb-6 p-4 bg-indigo-50/80 border-2 border-indigo-200 rounded-2xl hidden">
+          <div class="text-xs font-bold text-indigo-900 mb-2 flex items-center justify-between">
+            <span class="flex items-center gap-1.5">
+              <i class="fa-solid fa-hand-pointer text-indigo-600"></i>
+              【語群】語句をドラッグ＆ドロップして空欄に移動できます（タップ入力も可）
+            </span>
+          </div>
+          <div id="fb-wordbank-chips" class="flex flex-wrap gap-2">
+            <!-- Chips rendered via JS -->
+          </div>
+        </div>
+
+        <!-- Question Passage Text -->
+        <div id="fb-passage-text" class="text-slate-800 font-medium text-base md:text-lg leading-loose mb-8 p-4 bg-slate-50/80 rounded-2xl border border-slate-200/60 whitespace-pre-line select-none">
+          文章問題テキストがここに表示されます...
+        </div>
+
+        <!-- Inputs Grid / Drop Targets -->
+        <div class="border-t border-slate-200 pt-6">
+          <h3 class="text-sm font-bold text-slate-700 mb-4 flex items-center gap-1">
+            <i class="fa-solid fa-pen-clip text-indigo-600"></i> 各空欄の解答を入力（または語句をここにドロップ）
+          </h3>
+          <div id="fb-inputs-list" class="space-y-4">
+            <!-- Rendered via JS -->
+          </div>
+        </div>
+
+        <!-- Submit & Toggle Answer Buttons -->
+        <div class="mt-8 flex flex-col sm:flex-row gap-3">
+          <button id="btn-fb-submit" onclick="submitFillblankAnswers()" class="flex-1 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl text-base shadow-md transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-check-double"></i> 答え合わせ・チェック
+          </button>
+          <button id="btn-fb-toggle-ans" onclick="toggleFillblankAnswersDisplay()" class="py-4 px-6 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-base transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-eye"></i> 正解表示
+          </button>
+        </div>
+
+        <!-- Feedback Result Box -->
+        <div id="fb-feedback-box" class="mt-6 p-5 rounded-2xl hidden transition-all">
+          <div id="fb-feedback-title" class="text-lg font-bold mb-2"></div>
+          <div id="fb-feedback-details" class="text-sm space-y-1"></div>
+        </div>
+      </div>
+
+      <!-- Navigation & Mastery Action Buttons -->
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <button onclick="markFillblankMastery(false)" class="py-3 px-4 bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 rounded-2xl font-bold flex items-center justify-center gap-2 transition shadow-sm">
+          <i class="fa-solid fa-rotate-right text-amber-600"></i> 要復習に登録
+        </button>
+        <button onclick="markFillblankMastery(true)" class="py-3 px-4 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 rounded-2xl font-bold flex items-center justify-center gap-2 transition shadow-sm">
+          <i class="fa-solid fa-check text-emerald-600"></i> この大問を習得！
+        </button>
+      </div>
+
+      <div class="flex justify-between items-center gap-3">
+        <button onclick="prevFillblankQuestion()" class="flex-1 py-3 px-4 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-2xl font-bold flex items-center justify-center gap-2 transition shadow-sm">
+          <i class="fa-solid fa-chevron-left"></i> 前の大問
+        </button>
+        <button onclick="nextFillblankQuestion()" class="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold flex items-center justify-center gap-2 transition shadow-sm">
+          次の大問 <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+    </section>
+
+
+    <!-- ================= MODE 5: Word List & Search Mode ================= -->
     <section id="mode-list" class="hidden">
       <!-- Search and Controls -->
       <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 mb-6 flex flex-col md:flex-row gap-3">
@@ -318,19 +453,19 @@
       </div>
 
       <!-- List Container -->
-      <div id="question-list-container" class="space-y-3">
-        <!-- Rendered via JS -->
-      </div>
+      <div id="question-list-container" class="space-y-3"></div>
     </section>
 
   </main>
 
   <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500 font-medium">
-    地学基礎 暗記＆クイズ・文字入力アプリ
+    地学基礎 暗記＆クイズ・文字入力・適語補充マスター
   </footer>
 
   <script>
-    // 52 Complete Questions Dataset with flexible alternate answers
+    const STORAGE_KEY = 'geology_study_app_progress_v2';
+
+    // 52 Questions Dataset
     const rawQuestions = [
       { id: 1, q: "地球大気に最も多く含まれる気体は何か。", a: "窒素", alt: ["ちっ素"] },
       { id: 2, q: "気圧の単位である hPa の読み方は何か。", a: "ヘクトパスカル", alt: ["へくとぱすかる"] },
@@ -386,9 +521,171 @@
       { id: 52, q: "海上では降水量と蒸発量のどちらが多いか。", a: "降水量", alt: ["こうすいりょう"] }
     ];
 
-    // Application state
+    // Transcribed Fill-in-the-Blank Questions Dataset
+    const fillblankQuestions = [
+      {
+        id: "fb-93",
+        num: "93",
+        title: "93. 大気の循環",
+        type: "語句選択・適語補充",
+        text: "地球の大気は赤道地方と極地方で受ける太陽放射の差によって大循環を起こし、地球の(ア)の影響により、各半球の南北循環は3つに分断されている。\n赤道付近では熱せられて上昇した大気は北上し、緯度30度付近で下降して(イ)へもどる。このような循環を(ウ)循環という。一方、(エ)から高緯度側に向かった風は(オ)となる。この風は亜熱帯上空の高さ約11kmの圏界面付近で特に強く、ときには風速が約100m/sにも達する。この上空の強い風を(カ)といい、ふつう南北に蛇行しながら吹いている。",
+        wordBank: ["ハドレー", "公転", "自転", "極偏東風", "北東貿易風", "偏西風", "ジェット気流", "赤道", "亜熱帯高圧帯"],
+        blanks: [
+          { key: "ア", answer: "自転", alt: ["じてん"] },
+          { key: "イ", answer: "赤道", alt: ["せきどう", "熱帯収束帯"] },
+          { key: "ウ", answer: "ハドレー", alt: ["はどれー"] },
+          { key: "エ", answer: "亜熱帯高圧帯", alt: ["あねったいこうあつたい"] },
+          { key: "オ", answer: "偏西風", alt: ["へんせいふう"] },
+          { key: "カ", answer: "ジェット気流", alt: ["じぇっときりゅう"] }
+        ]
+      },
+      {
+        id: "fb-98",
+        num: "98",
+        title: "98. 日本の天気",
+        type: "適語補充",
+        text: "日本の天気は1年を通じて変化に富み、四季によって明瞭な違いがあることが、その特徴である。\n春には、(ア)と(イ)が交互に日本付近を通過し、周期的に天気が変わる。(ア)が日本海に入り急速に発達すると(ウ)側から湿潤な空気が日本列島に吹きこみ、山地をこえて(エ)側に吹き降りるとフェーン現象が発生することがある。\n6月中旬になると(オ)高気圧と(カ)高気圧の間に(キ)が停滞し、ぐずついた天気が続く。数時間にわたってはほぼ同じ場所に、線状の強い降水域である(ク)が形成され、集中豪雨をもたらすことがある。夏には、日本列島は広く(ケ)高気圧におおわれて、蒸し暑い日が続く。\n秋に(コ)側の高気圧が強くなってくると、(サ)が停滞し長雨をもたらす。また、熱帯の太平洋上で発生、発達した台風が、日本に接近したり上陸したりして大きな被害をもたらすことがある。\n冬には、日本列島の周辺は西高東低の気圧配置になり、冷たい北西風が吹きこみ、山地の(シ)側で雪を降らせる。",
+        wordBank: null,
+        blanks: [
+          { key: "ア", answer: "移動性高気圧", alt: ["いどうせいこうあつきあつ"] },
+          { key: "イ", answer: "温帯低気圧", alt: ["おんたいていきあつ"] },
+          { key: "ウ", answer: "太平洋", alt: ["たいへいよう", "南"] },
+          { key: "エ", answer: "日本海", alt: ["にほんかい", "北"] },
+          { key: "オ", answer: "太平洋", alt: ["オホーツク海", "たいへいよう"] },
+          { key: "カ", answer: "オホーツク海", alt: ["太平洋", "おほーつくかい"] },
+          { key: "キ", answer: "梅雨前線", alt: ["ばいうぜんせん"] },
+          { key: "ク", answer: "線状降水帯", alt: ["せんじょうこうすいたい"] },
+          { key: "ケ", answer: "太平洋", alt: ["たいへいよう"] },
+          { key: "コ", answer: "シベリア", alt: ["大陸", "しべりあ"] },
+          { key: "サ", answer: "秋雨前線", alt: ["あきさめぜんせん"] },
+          { key: "シ", answer: "日本海", alt: ["にほんかい", "西"] }
+        ]
+      },
+      {
+        id: "fb-100",
+        num: "100",
+        title: "100. 台風と気象災害",
+        type: "語句選択・適語補充",
+        text: "北太平洋西部で発生した(ア)低気圧のうち，最大風速が(イ)m/s以上に発達したものを台風と呼ぶ。台風が日本列島を通過するとき，気圧の低下による海面の(ウ)作用や，強風による海水の発揚作用によって，海岸付近の海面が異常に高くなる(エ)という現象が起きることがある。台風が通過するとき，台風の中心に対して(オ)の方位にある南に開いた湾で(カ)の被害が起きやすい。",
+        wordBank: ["津波", "大潮", "高潮", "温帯", "熱帯", "押し下げ", "吸い上げ", "吹き寄せ", "東", "西", "南", "北", "14", "17", "19"],
+        blanks: [
+          { key: "ア", answer: "熱帯", alt: ["ねったい"] },
+          { key: "イ", answer: "17", alt: ["１７", "17m/s"] },
+          { key: "ウ", answer: "吸い上げ", alt: ["すいあげ"] },
+          { key: "エ", answer: "高潮", alt: ["たかしお"] },
+          { key: "オ", answer: "東", alt: ["ひがし"] },
+          { key: "カ", answer: "高潮", alt: ["たかしお"] }
+        ]
+      },
+      {
+        id: "fb-101",
+        num: "101",
+        title: "101. 台風の移動経路と高潮",
+        type: "適語補充",
+        text: "台風の移動経路は季節により異なる。日本列島に台風が上陸しやすいのは、(ア)月であると考えられている。7月以降に日本列島に接近する台風が増える要因としては、同じ時期に勢力の強まる(イ)の影響が大きい。\n台風が陸域に接近すると、気圧の低下に伴い潮位(海水位)が上昇することに加え、湾奥部では強風により海水が吹き寄せられて潮位が大幅に上昇し、満潮時に高潮による大きな被害をもたらすことがある。",
+        wordBank: null,
+        blanks: [
+          { key: "ア", answer: "8", alt: ["８", "8月", "８月", "8・9"] },
+          { key: "イ", answer: "太平洋高気圧", alt: ["たいへいようこうあつきあつ"] }
+        ]
+      },
+      {
+        id: "fb-102",
+        num: "102",
+        title: "102. 海水の組成",
+        type: "適語補充・選択",
+        text: "海水中にはいろいろな塩類が含まれているが，量の多いものから順に3つあげると，(ア)・(イ)・硫酸マグネシウムである。海水中の塩分の濃度のことを(ウ)といい，塩分(‰)は海水(エ)中に何gの塩類が含まれているかで表す。この割合を(オ)という記号で示す。塩分の平均的な値は(カ)である。塩分は場所によって異なるが，塩分中の塩素の量の測定から求めることができる。\n塩類の組成は場所によって(キ)ので，塩分はほぼ一定である(ク)によって異なるからである。\n【選択肢: (キ)(ク)】 ①よらずほぼ一定である ②よって異なる",
+        wordBank: ["塩化ナトリウム", "塩化マグネシウム", "塩分", "1kg", "‰", "35‰", "①よらずほぼ一定である", "②よって異なる"],
+        blanks: [
+          { key: "ア", answer: "塩化ナトリウム", alt: ["えんかなとりうむ"] },
+          { key: "イ", answer: "塩化マグネシウム", alt: ["えんかまぐねしうむ"] },
+          { key: "ウ", answer: "塩分", alt: ["えんぶん", "塩分濃度"] },
+          { key: "エ", answer: "1kg", alt: ["1 kg", "１kg", "1000g", "1kg中"] },
+          { key: "オ", answer: "‰", alt: ["パーミル", "ぱーみる"] },
+          { key: "カ", answer: "35‰", alt: ["35", "３５", "35パーミル"] },
+          { key: "キ", answer: "①", alt: ["1", "①よらずほぼ一定である", "よらずほぼ一定である"] },
+          { key: "ク", answer: "②", alt: ["2", "②よって異なる", "よって異なる"] }
+        ]
+      },
+      {
+        id: "fb-103",
+        num: "103",
+        title: "103. 水温の鉛直分布",
+        type: "語句選択・適語補充",
+        text: "海水は鉛直方向に層構造を形成している。海洋の表層には，水温が比較的高く，風や波の影響でよくかき混ぜられている(ア)がある。この層は，中緯度や高緯度において，特に風が強まり海水が大きくかき混ぜられる(イ)季に(ウ)くなる。この層の下には，水温が深さとともに急速に低下する(エ)が存在する。さらに水深が深くなると，水温が低くほぼ一様な(オ)となる。",
+        wordBank: ["春", "夏", "秋", "冬", "薄層", "深層", "薄", "厚", "表層混合層", "主水温躍層"],
+        blanks: [
+          { key: "ア", answer: "表層混合層", alt: ["ひょうそうこんごうそう"] },
+          { key: "イ", answer: "冬", alt: ["ふゆ"] },
+          { key: "ウ", answer: "厚", alt: ["あつ"] },
+          { key: "エ", answer: "主水温躍層", alt: ["しゅすいおんやくそう", "水温躍層"] },
+          { key: "オ", answer: "深層", alt: ["しんそう"] }
+        ]
+      },
+      {
+        id: "fb-105",
+        num: "105",
+        title: "105. エルニーニョ",
+        type: "語句選択・適語補充",
+        text: "太平洋では，(ア)に一度，赤道東部の海水温が平常時より数℃上昇するエルニーニョが起こる。エルニーニョが起こっていないときは，赤道太平洋上では強い東風が吹いているため，暖かい海水の層は(イ)部ほど厚く，(ウ)部では冷たい海水の湧昇が起こる。この東風が弱まると，(エ)部に集められていた暖かい海水は(オ)の方に広がり，湧昇も弱まる。その結果，東部の海面水温が上昇する。これがエルニーニョである。\n反対に，ラニーニャが起こっているときには，東風が(カ)ため，暖かい表層の海水は(キ)に流され，それを補うように冷水の湧昇は(ク)。これにより東部の表層水温は(ケ)。",
+        wordBank: ["数年間", "数年", "数か月", "東", "西", "強まる", "弱まる", "上がる", "下がる"],
+        blanks: [
+          { key: "ア", answer: "数年", alt: ["すうねん"] },
+          { key: "イ", answer: "西", alt: ["にし"] },
+          { key: "ウ", answer: "東", alt: ["ひがし"] },
+          { key: "エ", answer: "西", alt: ["にし"] },
+          { key: "オ", answer: "東", alt: ["ひがし"] },
+          { key: "カ", answer: "弱まる", alt: ["よわまる"] },
+          { key: "キ", answer: "西", alt: ["にし"] },
+          { key: "ク", answer: "強まる", alt: ["つよまる"] },
+          { key: "ケ", answer: "下がる", alt: ["さがる"] }
+        ]
+      },
+      {
+        id: "fb-107",
+        num: "107",
+        title: "107. 降水量と蒸発量の分布",
+        type: "適語補充",
+        text: "海面における年平均降水量と年平均蒸発量の緯度別分布から，大気と海洋の緯度ごとの水循環がわかる。たとえば，大気のハドレー循環に伴って(ア)から(イ)に水蒸気が運ばれる，と考察できる。",
+        wordBank: ["熱帯", "亜熱帯", "中緯度帯"],
+        blanks: [
+          { key: "ア", answer: "亜熱帯", alt: ["あねったい"] },
+          { key: "イ", answer: "熱帯", alt: ["ねったい"] }
+        ]
+      }
+    ];
+
+    // State Variables
     let currentMode = 'flashcard';
-    let userProgress = {}; // id -> 'mastered' | 'review'
+    let userProgress = {};
+
+    function loadProgress() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) userProgress = JSON.parse(saved);
+      } catch (e) {
+        console.error("Progress load error", e);
+      }
+    }
+
+    function saveProgress() {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(userProgress));
+      } catch (e) {
+        console.error("Progress save error", e);
+      }
+    }
+
+    function resetAllProgress() {
+      if (confirm("全ての学習進捗データを初期化してもよろしいですか？")) {
+        userProgress = {};
+        saveProgress();
+        updateHeaderBadges();
+        if (currentMode === 'flashcard') renderFlashcard();
+        if (currentMode === 'fillblank') renderFillblankQuestion();
+        if (currentMode === 'list') renderQuestionList();
+      }
+    }
 
     // Flashcard state
     let cardDeck = [...rawQuestions];
@@ -396,7 +693,7 @@
     let isFlipped = false;
     let filterReviewOnly = false;
 
-    // Typing test state
+    // Typing state
     let typingDeck = [];
     let typingIndex = 0;
     let typingScore = 0;
@@ -408,34 +705,34 @@
     let quizScore = 0;
     let quizAnswered = false;
 
+    // Fillblank state
+    let fbIndex = 0;
+    let activeInputId = null;
+
     function switchMode(mode) {
       currentMode = mode;
       
-      const modes = ['flashcard', 'typing', 'quiz', 'list'];
+      const modes = ['flashcard', 'typing', 'quiz', 'fillblank', 'list'];
       modes.forEach(m => {
         const tab = document.getElementById(`tab-${m}`);
         const sec = document.getElementById(`mode-${m}`);
         if (m === mode) {
-          tab.className = "flex-1 min-w-[90px] py-2.5 text-center border-b-2 border-white font-bold transition-all flex items-center justify-center gap-1.5 text-white";
+          tab.className = "flex-1 min-w-[85px] py-2.5 text-center border-b-2 border-white font-bold transition-all flex items-center justify-center gap-1.5 text-white";
           sec.classList.remove('hidden');
         } else {
-          tab.className = "flex-1 min-w-[90px] py-2.5 text-center border-b-2 border-transparent text-indigo-200 hover:text-white transition-all flex items-center justify-center gap-1.5";
+          tab.className = "flex-1 min-w-[85px] py-2.5 text-center border-b-2 border-transparent text-indigo-200 hover:text-white transition-all flex items-center justify-center gap-1.5";
           sec.classList.add('hidden');
         }
       });
 
-      if (mode === 'typing' && typingDeck.length === 0) {
-        startTypingTest();
-      } else if (mode === 'quiz' && quizDeck.length === 0) {
-        startQuiz();
-      } else if (mode === 'list') {
-        renderQuestionList();
-      }
+      if (mode === 'typing' && typingDeck.length === 0) startTypingTest();
+      else if (mode === 'quiz' && quizDeck.length === 0) startQuiz();
+      else if (mode === 'fillblank') renderFillblankQuestion();
+      else if (mode === 'list') renderQuestionList();
     }
 
     function updateHeaderBadges() {
-      let mastered = 0;
-      let review = 0;
+      let mastered = 0, review = 0;
       Object.values(userProgress).forEach(val => {
         if (val === 'mastered') mastered++;
         if (val === 'review') review++;
@@ -445,6 +742,7 @@
       document.getElementById('review-count-badge').innerHTML = `<i class="fa-solid fa-rotate-right"></i> 復習: ${review}`;
     }
 
+    // ================= FLASHCARD LOGIC =================
     function renderFlashcard() {
       if (cardDeck.length === 0) {
         document.getElementById('card-question').innerText = "条件に一致する問題がありません";
@@ -466,17 +764,13 @@
         altBox.classList.add('hidden');
       }
 
-      // Unflip card
       const inner = document.getElementById('flashcard-inner');
       inner.classList.remove('is-flipped');
       isFlipped = false;
 
-      // Update progress bar
       document.getElementById('card-progress-text').innerText = `問題 ${cardIndex + 1} / ${cardDeck.length}`;
-      const pct = ((cardIndex + 1) / cardDeck.length) * 100;
-      document.getElementById('card-progress-bar').style.width = `${pct}%`;
+      document.getElementById('card-progress-bar').style.width = `${((cardIndex + 1) / cardDeck.length) * 100}%`;
 
-      // Status badge
       const statusInd = document.getElementById('card-status-indicator');
       const st = userProgress[item.id];
       if (st === 'mastered') {
@@ -493,11 +787,7 @@
     function flipCard() {
       const inner = document.getElementById('flashcard-inner');
       isFlipped = !isFlipped;
-      if (isFlipped) {
-        inner.classList.add('is-flipped');
-      } else {
-        inner.classList.remove('is-flipped');
-      }
+      inner.classList.toggle('is-flipped', isFlipped);
     }
 
     function nextCard() {
@@ -516,6 +806,7 @@
       if (cardDeck.length === 0) return;
       const item = cardDeck[cardIndex];
       userProgress[item.id] = isMastered ? 'mastered' : 'review';
+      saveProgress();
       updateHeaderBadges();
       nextCard();
     }
@@ -544,22 +835,16 @@
     }
 
 
-    // Smart text normalization helper
+    // Helper normalize function for answers
     function normalizeText(str) {
       if (!str) return '';
-      return str
-        .trim()
-        .toLowerCase()
-        // Convert full-width alphanumeric to half-width
-        .replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
-          return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
-        })
-        // Remove spaces
-        .replace(/[\s　]+/g, '')
-        // Katakana/Hiragana normalize or remove common trailing punctuation
+      return str.trim().toLowerCase()
+        .replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+        .replace(/[\s ]+/g, '')
         .replace(/[。、！!？?]/g, '');
     }
 
+    // ================= TYPING TEST LOGIC =================
     function startTypingTest() {
       typingDeck = [...rawQuestions].sort(() => Math.random() - 0.5);
       typingIndex = 0;
@@ -615,8 +900,6 @@
 
       const item = typingDeck[typingIndex];
       const normalizedUser = normalizeText(userVal);
-
-      // Collect all acceptable answers
       const acceptable = [item.a, ...(item.alt || [])].map(normalizeText);
 
       const isCorrect = acceptable.includes(normalizedUser);
@@ -630,22 +913,21 @@
       if (isCorrect) {
         typingScore++;
         userProgress[item.id] = 'mastered';
+        saveProgress();
         input.className = "w-full px-5 py-4 text-base md:text-lg rounded-2xl border-2 border-emerald-500 bg-emerald-50 font-bold text-emerald-900";
-        
         feedback.className = "rounded-2xl p-6 bg-emerald-50 border-2 border-emerald-400 text-emerald-900 mb-6";
         title.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-600"></i> <span>正解！素晴らしい！</span>';
         detail.innerHTML = `正解: <span class="font-extrabold text-emerald-700">${item.a}</span>`;
       } else {
         userProgress[item.id] = 'review';
+        saveProgress();
         input.className = "w-full px-5 py-4 text-base md:text-lg rounded-2xl border-2 border-rose-500 bg-rose-50 font-bold text-rose-900";
-
         feedback.className = "rounded-2xl p-6 bg-rose-50 border-2 border-rose-300 text-rose-900 mb-6";
         title.innerHTML = '<i class="fa-solid fa-circle-xmark text-rose-600"></i> <span>おしい！残念...</span>';
         detail.innerHTML = `あなたの解答: <span class="line-through text-rose-700 mr-3">${userVal}</span> 正解: <span class="font-extrabold text-slate-900 bg-amber-200 px-2 py-0.5 rounded">${item.a}</span>`;
       }
 
       updateHeaderBadges();
-
       document.getElementById('btn-typing-submit').classList.add('hidden');
       document.getElementById('btn-typing-next').classList.remove('hidden');
       document.getElementById('btn-typing-next').focus();
@@ -666,7 +948,7 @@
       document.getElementById('typing-final-score').innerText = `${typingScore} / ${typingDeck.length} 正解`;
     }
 
-
+    // ================= QUIZ MODE LOGIC =================
     function startQuiz() {
       quizDeck = [...rawQuestions].sort(() => Math.random() - 0.5);
       quizIndex = 0;
@@ -685,10 +967,8 @@
       document.getElementById('quiz-progress-text').innerText = `クイズ ${quizIndex + 1} / ${quizDeck.length}`;
       document.getElementById('quiz-score-text').innerText = `正解数: ${quizScore}`;
       document.getElementById('quiz-progress-bar').style.width = `${((quizIndex + 1) / quizDeck.length) * 100}%`;
-      
       document.getElementById('quiz-question-text').innerText = `${item.id}. ${item.q}`;
 
-      // Generate options
       const options = [item.a];
       const otherAnswers = [...new Set(rawQuestions.map(q => q.a))].filter(a => a !== item.a);
       
@@ -726,12 +1006,14 @@
       if (selectedOpt === correctOpt) {
         quizScore++;
         userProgress[item.id] = 'mastered';
+        saveProgress();
         btnElement.className = "w-full text-left p-4 bg-emerald-100 border-2 border-emerald-500 rounded-2xl font-bold text-emerald-900 flex justify-between items-center shadow-sm";
         btnElement.querySelector('i').className = "fa-solid fa-circle-check text-emerald-600 text-xl";
         feedback.className = "p-4 rounded-2xl mb-4 text-center font-bold bg-emerald-100 text-emerald-800 border border-emerald-300";
         feedback.innerHTML = '<i class="fa-solid fa-circle-check"></i> 正解！';
       } else {
         userProgress[item.id] = 'review';
+        saveProgress();
         btnElement.className = "w-full text-left p-4 bg-rose-100 border-2 border-rose-500 rounded-2xl font-bold text-rose-900 flex justify-between items-center shadow-sm";
         btnElement.querySelector('i').className = "fa-solid fa-circle-xmark text-rose-600 text-xl";
         feedback.className = "p-4 rounded-2xl mb-4 text-center font-bold bg-rose-100 text-rose-800 border border-rose-300";
@@ -765,6 +1047,362 @@
     }
 
 
+    // ================= MODE 4: FILL-IN-THE-BLANK (WITH DRAG & DROP) LOGIC =================
+    let isShowingFBAnswers = false;
+    let draggingWord = null;
+    let dragGhost = null;
+
+    function renderFillblankQuestion() {
+      const q = fillblankQuestions[fbIndex];
+      isShowingFBAnswers = false;
+
+      document.getElementById('fb-progress-text').innerText = `適語問題 ${fbIndex + 1} / ${fillblankQuestions.length}`;
+      document.getElementById('fb-progress-bar').style.width = `${((fbIndex + 1) / fillblankQuestions.length) * 100}%`;
+
+      const statusBadge = document.getElementById('fb-status-badge');
+      const st = userProgress[q.id];
+      if (st === 'mastered') {
+        statusBadge.className = "text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300";
+        statusBadge.innerText = "習得済み";
+      } else if (st === 'review') {
+        statusBadge.className = "text-xs px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300";
+        statusBadge.innerText = "要復習";
+      } else {
+        statusBadge.className = "text-xs px-2.5 py-1 rounded-full font-bold bg-slate-100 text-slate-600";
+        statusBadge.innerText = "未解答";
+      }
+
+      document.getElementById('fb-title').innerHTML = `<i class="fa-solid fa-book-bookmark text-indigo-600"></i> ${q.title}`;
+      document.getElementById('fb-type-badge').innerText = q.type;
+
+      // Word Bank (語群)
+      const wbContainer = document.getElementById('fb-wordbank-container');
+      const wbChips = document.getElementById('fb-wordbank-chips');
+      if (q.wordBank && q.wordBank.length > 0) {
+        wbContainer.classList.remove('hidden');
+        wbChips.innerHTML = q.wordBank.map((w, idx) => 
+          `<div data-wb-index="${idx}" data-word="${w}" onpointerdown="onChipPointerDown(event, '${w}', ${idx})" onclick="insertWordToActiveInput('${w}', ${idx})" 
+            class="draggable-chip px-3.5 py-2 bg-white hover:bg-indigo-100 active:bg-indigo-200 text-indigo-900 border-2 border-indigo-300 font-bold rounded-xl text-xs md:text-sm shadow-sm transition-all transform hover:-translate-y-0.5 flex items-center gap-1.5 select-none">
+            <i class="fa-solid fa-grip-dots-vertical text-indigo-400 text-xs"></i>
+            <span>${w}</span>
+          </div>`
+        ).join('');
+      } else {
+        wbContainer.classList.add('hidden');
+      }
+
+      // Passage text with styled inline Drop Targets and Clear Button
+      let formattedText = q.text;
+      q.blanks.forEach(b => {
+        const keyTag = `(${b.key})`;
+        const dropInlineHTML = `<span data-key="${b.key}" id="fb-inline-target-${b.key}" 
+          class="fb-drop-target inline-flex items-center justify-center px-2.5 py-1 mx-1 bg-amber-100 text-amber-900 font-bold border-2 border-dashed border-amber-500 rounded-xl text-sm md:text-base cursor-pointer hover:bg-amber-200 shadow-xs">
+            (${b.key}) <span id="fb-inline-val-${b.key}" class="ml-1 text-indigo-800 font-black">＿＿</span>
+            <button type="button" id="fb-inline-clear-${b.key}" onclick="event.stopPropagation(); clearBlankValue('${b.key}')" 
+              class="hidden ml-1.5 w-4 h-4 bg-rose-500 hover:bg-rose-600 text-white rounded-full text-[10px] leading-none items-center justify-center font-bold shadow-xs" title="削除">&times;</button>
+          </span>`;
+        formattedText = formattedText.replaceAll(keyTag, dropInlineHTML);
+      });
+      document.getElementById('fb-passage-text').innerHTML = formattedText;
+
+      // Render input rows with Clear Button
+      const inputsContainer = document.getElementById('fb-inputs-list');
+      inputsContainer.innerHTML = '';
+
+      q.blanks.forEach(b => {
+        const row = document.createElement('div');
+        row.className = "flex flex-col sm:flex-row items-start sm:items-center gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200/80";
+        row.innerHTML = `
+          <div class="w-16 font-bold text-indigo-700 flex items-center gap-1 shrink-0">
+            <span class="bg-indigo-100 text-indigo-800 px-2.5 py-1 rounded-lg text-sm font-extrabold">(${b.key})</span>
+          </div>
+          <div data-key="${b.key}" class="fb-drop-target flex-1 w-full relative rounded-xl transition-all flex items-center">
+            <input type="text" id="fb-input-${b.key}" onfocus="setActiveInput('fb-input-${b.key}')" oninput="updateInlineVal('${b.key}', this.value)" placeholder="ここにドラッグ＆ドロップ、または直接入力..." 
+              class="w-full pl-4 pr-9 py-2.5 rounded-xl border border-slate-300 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 transition font-bold text-slate-800 text-sm md:text-base">
+            <button type="button" id="fb-clear-${b.key}" onclick="clearBlankValue('${b.key}')" 
+              class="hidden absolute right-2.5 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-xs" title="削除">&times;</button>
+          </div>
+          <div id="fb-result-label-${b.key}" class="text-xs font-bold shrink-0 hidden"></div>
+        `;
+        inputsContainer.appendChild(row);
+      });
+
+      document.getElementById('fb-feedback-box').classList.add('hidden');
+      document.getElementById('btn-fb-toggle-ans').innerHTML = '<i class="fa-solid fa-eye"></i> 正解表示';
+      activeInputId = `fb-input-${q.blanks[0].key}`;
+
+      updateWordBankUsedStatus();
+    }
+
+    function setActiveInput(id) {
+      activeInputId = id;
+    }
+
+    function updateInlineVal(key, val) {
+      const inlineValEl = document.getElementById(`fb-inline-val-${key}`);
+      const inlineClearBtn = document.getElementById(`fb-inline-clear-${key}`);
+      const inputClearBtn = document.getElementById(`fb-clear-${key}`);
+
+      if (inlineValEl) {
+        inlineValEl.innerText = val ? val : '＿＿';
+        inlineValEl.className = val ? "ml-1 text-indigo-900 font-black underline decoration-2 decoration-indigo-500" : "ml-1 text-indigo-800 font-black";
+      }
+
+      // Toggle Clear (x) Buttons
+      if (val) {
+        if (inlineClearBtn) inlineClearBtn.classList.remove('hidden');
+        if (inputClearBtn) inputClearBtn.classList.remove('hidden');
+      } else {
+        if (inlineClearBtn) inlineClearBtn.classList.add('hidden');
+        if (inputClearBtn) inputClearBtn.classList.add('hidden');
+      }
+
+      updateWordBankUsedStatus();
+    }
+
+    function clearBlankValue(key) {
+      const inputEl = document.getElementById(`fb-input-${key}`);
+      if (inputEl) {
+        inputEl.value = '';
+        updateInlineVal(key, '');
+        inputEl.focus();
+      }
+    }
+
+    function updateWordBankUsedStatus() {
+      const q = fillblankQuestions[fbIndex];
+      if (!q || !q.wordBank) return;
+
+      // 1. すべての入力欄から入力中の文字列を収集
+      const currentValues = [];
+      q.blanks.forEach(b => {
+        const inputEl = document.getElementById(`fb-input-${b.key}`);
+        if (inputEl && inputEl.value.trim()) {
+          currentValues.push(inputEl.value.trim());
+        }
+      });
+
+      // 2. 語群の各チップ要素の使用状態を判定
+      const chipElements = document.querySelectorAll('#fb-wordbank-chips .draggable-chip');
+      const remainingValues = [...currentValues];
+
+      chipElements.forEach(chip => {
+        const word = chip.getAttribute('data-word');
+        const matchIdx = remainingValues.indexOf(word);
+
+        if (matchIdx !== -1) {
+          chip.classList.add('used');
+          remainingValues.splice(matchIdx, 1);
+        } else {
+          chip.classList.remove('used');
+        }
+      });
+    }
+
+    function insertWordToActiveInput(word, idx) {
+      if (!activeInputId) return;
+
+      // 使用済みのチップは入力不可
+      const chip = document.querySelector(`#fb-wordbank-chips [data-wb-index="${idx}"]`);
+      if (chip && chip.classList.contains('used')) return;
+
+      const el = document.getElementById(activeInputId);
+      if (el) {
+        el.value = word;
+        const key = activeInputId.replace('fb-input-', '');
+        updateInlineVal(key, word);
+        el.focus();
+      }
+    }
+
+    // ================= POINTER-BASED DRAG & DROP ENGINE =================
+    function initDragAndDropEngine() {
+      document.addEventListener('pointermove', onPointerMove);
+      document.addEventListener('pointerup', onPointerUp);
+      document.addEventListener('pointercancel', onPointerUp);
+    }
+
+    function onChipPointerDown(e, word, idx) {
+      if (e.button !== 0 && e.pointerType === 'mouse') return;
+
+      const targetChip = e.currentTarget;
+      if (targetChip && targetChip.classList.contains('used')) return;
+
+      draggingWord = word;
+      
+      // Create visual clone ghost
+      dragGhost = document.createElement('div');
+      dragGhost.className = "fixed z-50 px-4 py-2 bg-indigo-600 text-white font-extrabold rounded-xl shadow-2xl pointer-events-none transform -translate-x-1/2 -translate-y-1/2 opacity-95 text-sm md:text-base border-2 border-white ring-4 ring-indigo-300";
+      dragGhost.innerText = word;
+      dragGhost.style.left = `${e.clientX}px`;
+      dragGhost.style.top = `${e.clientY}px`;
+      document.body.appendChild(dragGhost);
+    }
+
+    function onPointerMove(e) {
+      if (!draggingWord || !dragGhost) return;
+      dragGhost.style.left = `${e.clientX}px`;
+      dragGhost.style.top = `${e.clientY}px`;
+      
+      const hoverTarget = getDropTargetUnderPoint(e.clientX, e.clientY);
+      document.querySelectorAll('.fb-drop-target').forEach(el => {
+        if (el === hoverTarget) {
+          el.classList.add('ring-4', 'ring-indigo-400', 'bg-indigo-100', 'scale-102');
+        } else {
+          el.classList.remove('ring-4', 'ring-indigo-400', 'bg-indigo-100', 'scale-102');
+        }
+      });
+    }
+
+    function onPointerUp(e) {
+      if (!draggingWord) return;
+      
+      const dropTarget = getDropTargetUnderPoint(e.clientX, e.clientY);
+      if (dropTarget) {
+        const key = dropTarget.getAttribute('data-key');
+        if (key) {
+          setBlankValue(key, draggingWord);
+        }
+      }
+      
+      if (dragGhost && dragGhost.parentNode) {
+        dragGhost.parentNode.removeChild(dragGhost);
+      }
+      dragGhost = null;
+      draggingWord = null;
+      
+      document.querySelectorAll('.fb-drop-target').forEach(el => {
+        el.classList.remove('ring-4', 'ring-indigo-400', 'bg-indigo-100', 'scale-102');
+      });
+    }
+
+    function getDropTargetUnderPoint(x, y) {
+      const elements = document.elementsFromPoint(x, y);
+      for (let el of elements) {
+        if (el.classList && el.classList.contains('fb-drop-target')) {
+          return el;
+        }
+      }
+      return null;
+    }
+
+    function setBlankValue(key, value) {
+      const inputEl = document.getElementById(`fb-input-${key}`);
+      if (inputEl) {
+        inputEl.value = value;
+        updateInlineVal(key, value);
+        
+        // Flash animation effect
+        inputEl.classList.add('bg-amber-200', 'border-amber-500');
+        setTimeout(() => {
+          inputEl.classList.remove('bg-amber-200', 'border-amber-500');
+        }, 300);
+      }
+    }
+
+    function submitFillblankAnswers() {
+      const q = fillblankQuestions[fbIndex];
+      let correctCount = 0;
+      const detailsHTML = [];
+
+      q.blanks.forEach(b => {
+        const inputEl = document.getElementById(`fb-input-${b.key}`);
+        const resultLabel = document.getElementById(`fb-result-label-${b.key}`);
+        const userVal = inputEl ? inputEl.value : '';
+
+        const normUser = normalizeText(userVal);
+        const acceptable = [b.answer, ...(b.alt || [])].map(normalizeText);
+
+        const isOk = acceptable.includes(normUser);
+
+        resultLabel.classList.remove('hidden');
+
+        if (isOk) {
+          correctCount++;
+          inputEl.className = "w-full pl-4 pr-9 py-2.5 rounded-xl border-2 border-emerald-500 bg-emerald-50 font-bold text-emerald-900 text-sm md:text-base";
+          resultLabel.className = "text-xs font-bold px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg shrink-0";
+          resultLabel.innerHTML = '<i class="fa-solid fa-check"></i> 正解';
+          detailsHTML.push(`<div><strong>(${b.key})</strong>: <span class="text-emerald-600 font-bold">〇 正解</span> (${b.answer})</div>`);
+        } else {
+          inputEl.className = "w-full pl-4 pr-9 py-2.5 rounded-xl border-2 border-rose-500 bg-rose-50 font-bold text-rose-900 text-sm md:text-base";
+          resultLabel.className = "text-xs font-bold px-2.5 py-1 bg-rose-100 text-rose-800 rounded-lg shrink-0";
+          resultLabel.innerHTML = `<i class="fa-solid fa-xmark"></i> 正解: ${b.answer}`;
+          detailsHTML.push(`<div><strong>(${b.key})</strong>: <span class="text-rose-600 font-bold">✕ 不正解</span> (正解: <span class="font-bold underline">${b.answer}</span>)</div>`);
+        }
+      });
+
+      const feedbackBox = document.getElementById('fb-feedback-box');
+      const feedbackTitle = document.getElementById('fb-feedback-title');
+      const feedbackDetails = document.getElementById('fb-feedback-details');
+
+      feedbackBox.classList.remove('hidden');
+
+      const totalBlanks = q.blanks.length;
+      if (correctCount === totalBlanks) {
+        userProgress[q.id] = 'mastered';
+        feedbackBox.className = "mt-6 p-5 rounded-2xl bg-emerald-50 border-2 border-emerald-400 text-emerald-950 transition-all";
+        feedbackTitle.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 text-xl"></i> 全問正解！素晴らしい！ (${correctCount}/${totalBlanks})`;
+      } else {
+        userProgress[q.id] = 'review';
+        feedbackBox.className = "mt-6 p-5 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 transition-all";
+        feedbackTitle.innerHTML = `<i class="fa-solid fa-circle-exclamation text-amber-600 text-xl"></i> 結果: ${correctCount} / ${totalBlanks} 問正解`;
+      }
+
+      feedbackDetails.innerHTML = detailsHTML.join('');
+      saveProgress();
+      updateHeaderBadges();
+
+      const statusBadge = document.getElementById('fb-status-badge');
+      if (userProgress[q.id] === 'mastered') {
+        statusBadge.className = "text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300";
+        statusBadge.innerText = "習得済み";
+      } else {
+        statusBadge.className = "text-xs px-2.5 py-1 rounded-full font-bold bg-amber-100 text-amber-800 border border-amber-300";
+        statusBadge.innerText = "要復習";
+      }
+    }
+
+    function toggleFillblankAnswersDisplay() {
+      const q = fillblankQuestions[fbIndex];
+      isShowingFBAnswers = !isShowingFBAnswers;
+
+      const btn = document.getElementById('btn-fb-toggle-ans');
+      btn.innerHTML = isShowingFBAnswers 
+        ? '<i class="fa-solid fa-eye-slash"></i> 正解を隠す' 
+        : '<i class="fa-solid fa-eye"></i> 正解表示';
+
+      q.blanks.forEach(b => {
+        const inputEl = document.getElementById(`fb-input-${b.key}`);
+        if (isShowingFBAnswers) {
+          if (!inputEl.value) {
+            inputEl.value = b.answer;
+            updateInlineVal(b.key, b.answer);
+          }
+        }
+      });
+      updateWordBankUsedStatus();
+    }
+
+    function markFillblankMastery(isMastered) {
+      const q = fillblankQuestions[fbIndex];
+      userProgress[q.id] = isMastered ? 'mastered' : 'review';
+      saveProgress();
+      updateHeaderBadges();
+      nextFillblankQuestion();
+    }
+
+    function nextFillblankQuestion() {
+      fbIndex = (fbIndex + 1) % fillblankQuestions.length;
+      renderFillblankQuestion();
+    }
+
+    function prevFillblankQuestion() {
+      fbIndex = (fbIndex - 1 + fillblankQuestions.length) % fillblankQuestions.length;
+      renderFillblankQuestion();
+    }
+
+
+    // ================= LIST MODE LOGIC =================
     let listAnswersVisible = false;
 
     function renderQuestionList() {
@@ -836,11 +1474,12 @@
       } else {
         userProgress[id] = 'mastered';
       }
+      saveProgress();
       updateHeaderBadges();
       renderQuestionList();
     }
 
-
+    // Keyboard Shortcuts for Flashcards
     document.addEventListener('keydown', function(e) {
       if (currentMode === 'flashcard') {
         if (e.code === 'Space') {
@@ -854,7 +1493,10 @@
       }
     });
 
+    // On App Load
     window.onload = function() {
+      loadProgress();
+      initDragAndDropEngine();
       renderFlashcard();
       updateHeaderBadges();
     };
